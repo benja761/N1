@@ -400,7 +400,8 @@ function Library.CreateWindow(title)
         Corner(circle,999)
         local circleStroke = Stroke(circle, self.CombatState.CircleColor, self.CombatState.CircleThickness, self.CombatState.CircleTransparency)
         self.CombatCircle = circle; self.CombatCircleStroke = circleStroke
-        local crosshair = Create("Frame",{Parent=combatGui, BackgroundTransparency=1, Size=UDim2.new(0,120,0,120),
+        
+local crosshair = Create("Frame",{Parent=combatGui, BackgroundTransparency=1, Size=UDim2.new(0,120,0,120),
             AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,0), Visible=false, ZIndex=62})
         self.CrosshairFrame = crosshair
         local lines = {}
@@ -1104,3 +1105,4 @@ function Library.CreateWindow(title)
 end
 
 return Library
+
