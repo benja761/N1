@@ -197,8 +197,13 @@ end
 ------------------------------------------------------------------------
 
 function Library.CreateWindow(title)
-    local self = setmetatable({}, Library)
-    self.Title = title or "Valary Style"
+  local self = setmetatable({}, Library)
+if typeof(title) == "string" then
+    self.Title = title
+else
+    self.Title = tostring(title or "Valary Style")
+end
+
     self.Tabs = {}
     self.Flags = {}
     self.CurrentTab = nil
@@ -310,7 +315,7 @@ function Library.CreateWindow(title)
     })
     dragify(top, main)
 
-    local brand = makeLabel(top, "valary.gg   " .. self.Title, 16, true, Theme.Text, Enum.TextXAlignment.Left)
+    local brand = makeLabel(top, "valary.gg   " .. tostring(self.Title), 16, true, Theme.Text, Enum.TextXAlignment.Left)
     brand.Position = UDim2.new(0, 14, 0, 0)
     brand.Size = UDim2.new(0.8, 0, 1, 0)
     brand.ZIndex = 4
