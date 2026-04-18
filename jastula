@@ -1,0 +1,222 @@
+--[[
+    MJ X YANKEES MENU PRO V5 (TOGGLE LOCK MODE)
+    - Abrir/Cerrar: F1
+    - Aimbot: Presiona una vez para bloquear, presiona otra para soltar.
+    - Keybind: Personalizable haciendo clic en el botón.
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- CONFIGURACIÓN GLOBAL
+local Config = {
+    Aimlock = false,      -- Si el master está activado
+    LockActive = false,   -- Si el pegado está activo actualmente
+    AimKey = Enum.UserInputType.MouseButton2, 
+    MenuKey = Enum.KeyCode.F1,
+    ESP = false,
+    SpeedEnabled = false,
+    SpeedValue = 22,
+    AimPart = "Head",
+    Binding = false,
+    Target = nil          -- El jugador al que estamos pegados
+}
+
+local ESPObjects = {}
+
+-- GUI PRINCIPAL
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "MJ_Yankees_V5"
+ScreenGui.ResetOnSpawn = false
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 350, 0, 450)
+Main.Position = UDim2.new(0.5, -175, 0.5, -225)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.BorderSizePixel = 0
+Main.Visible = false
+
+local Corner = Instance.new("UICorner", Main)
+local Stroke = Instance.new("UIStroke", Main)
+Stroke.Color = Color3.fromRGB(70, 70, 70)
+Stroke.Thickness = 2
+
+-- TÍTULO
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, 0, 0, 45)
+Title.Text = "MJ X YANKEES V5"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 20
+Title.BackgroundTransparency = 1
+
+task.spawn(function()
+    while task.wait() do
+        Title.TextColor3 = Color3.fromHSV(tick() % 5 / 5, 0.8, 1)
+    end
+end)
+
+local Page = Instance.new("ScrollingFrame", Main)
+Page.Size = UDim2.new(1, -20, 1, -65)
+Page.Position = UDim2.new(0, 10, 0, 55)
+Page.BackgroundTransparency = 1
+Page.ScrollBarThickness = 0
+Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local List = Instance.new("UIListLayout", Page)
+List.Padding = UDim.new(0, 12)
+List.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- FUNCIÓN TOGGLE
+local function CreateToggle(name, callback)
+    local Button = Instance.new("TextButton", Page)
+    Button.Size = UDim2.new(0.9, 0, 0, 45)
+    Button.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Button.Text = "  " .. name
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.Font = Enum.Font.Gotham; Button.TextSize = 14; Button.TextXAlignment = Enum.TextXAlignment.Left
+    Instance.new("UICorner", Button)
+
+    local BG = Instance.new("Frame", Button)
+    BG.Size = UDim2.new(0, 44, 0, 22); BG.Position = UDim2.new(1, -54, 0.5, -11); BG.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    Instance.new("UICorner", BG).CornerRadius = UDim.new(1, 0)
+
+    local Dot = Instance.new("Frame", BG)
+    Dot.Size = UDim2.new(0, 18, 0, 18); Dot.Position = UDim2.new(0, 2, 0.5, -9); Dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
+
+    local active = false
+    Button.MouseButton1Click:Connect(function()
+        active = not active
+        TweenService:Create(Dot, TweenInfo.new(0.2), {Position = active and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)}):Play()
+        TweenService:Create(BG, TweenInfo.new(0.2), {BackgroundColor3 = active and Color3.fromRGB(0, 180, 100) or Color3.fromRGB(45, 45, 45)}):Play()
+        callback(active)
+    end)
+end
+
+-- OPCIONES
+CreateToggle("Aimbot Master", function(v) 
+    Config.Aimlock = v 
+    if not v then Config.LockActive = false; Config.Target = nil end
+end)
+
+-- BOTÓN DE KEYBIND
+local BindButton = Instance.new("TextButton", Page)
+BindButton.Size = UDim2.new(0.9, 0, 0, 35); BindButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+BindButton.Text = "Bind: " .. (Config.AimKey.Name or tostring(Config.AimKey):gsub("Enum.UserInputType.", ""))
+BindButton.TextColor3 = Color3.fromRGB(200, 200, 200); BindButton.Font = Enum.Font.GothamMedium
+Instance.new("UICorner", BindButton)
+
+BindButton.MouseButton1Click:Connect(function()
+    Config.Binding = true
+    BindButton.Text = "... Presiona una tecla"
+end)
+
+-- LÓGICA DE APUNTADO CERCANO
+local function GetClosestPlayer()
+    local target, dist = nil, math.huge
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(Config.AimPart) then
+            local pos, onScreen = Camera:WorldToViewportPoint(v.Character[Config.AimPart].Position)
+            if onScreen then
+                local mag = (Vector2.new(pos.X, pos.Y) - UIS:GetMouseLocation()).Magnitude
+                if mag < dist then target = v; dist = mag end
+            end
+        end
+    end
+    return target
+end
+
+-- INPUT SYSTEM (F1, BIND, TOGGLE LOCK)
+UIS.InputBegan:Connect(function(i, gp)
+    if Config.Binding then
+        if i.UserInputType == Enum.UserInputType.Keyboard then Config.AimKey = i.KeyCode Config.Binding = false
+        elseif i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.MouseButton2 then Config.AimKey = i.UserInputType Config.Binding = false end
+        BindButton.Text = "Bind: " .. (Config.AimKey.Name or tostring(Config.AimKey):gsub("Enum.UserInputType.", ""))
+        return
+    end
+
+    if not gp and i.KeyCode == Config.MenuKey then Main.Visible = not Main.Visible end
+
+    -- Lógica de un solo clic para pegar/soltar
+    if Config.Aimlock and (i.KeyCode == Config.AimKey or i.UserInputType == Config.AimKey) then
+        Config.LockActive = not Config.LockActive
+        if Config.LockActive then
+            Config.Target = GetClosestPlayer()
+        else
+            Config.Target = nil
+        end
+    end
+end)
+
+-- OTROS CONTROLES
+CreateToggle("ESP Visuales", function(v) Config.ESP = v end)
+CreateToggle("Speed Hack", function(v) Config.SpeedEnabled = v end)
+
+-- SLIDER VELOCIDAD
+local SLabel = Instance.new("TextLabel", Page); SLabel.Size = UDim2.new(0.9, 0, 0, 20); SLabel.Text = "Velocidad: 40"; SLabel.TextColor3 = Color3.fromRGB(200, 200, 200); SLabel.Font = Enum.Font.Gotham; SLabel.BackgroundTransparency = 1
+local SBack = Instance.new("Frame", Page); SBack.Size = UDim2.new(0.9, 0, 0, 10); SBack.BackgroundColor3 = Color3.fromRGB(35, 35, 35); Instance.new("UICorner", SBack)
+local SFill = Instance.new("Frame", SBack); SFill.Size = UDim2.new(0.4, 0, 1, 0); SFill.BackgroundColor3 = Color3.fromRGB(0, 120, 255); Instance.new("UICorner", SFill)
+
+local dragging = false
+local function updateSlider(input)
+    local pos = math.clamp((input.Position.X - SBack.AbsolutePosition.X) / SBack.AbsoluteSize.X, 0, 1)
+    SFill.Size = UDim2.new(pos, 0, 1, 0)
+    Config.SpeedValue = math.floor(16 + (pos * 184))
+    SLabel.Text = "Velocidad: " .. Config.SpeedValue
+end
+SBack.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true updateSlider(i) end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then updateSlider(i) end end)
+
+-- BUCLE RENDER (VISUALES Y LÓGICA)
+RunService.RenderStepped:Connect(function()
+    -- Lógica Speed
+    if Config.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = Config.SpeedValue
+    end
+
+    -- Lógica Aimbot Pegado (Lock Mode)
+    if Config.Aimlock and Config.LockActive and Config.Target then
+        local t = Config.Target
+        if t.Character and t.Character:FindFirstChild(Config.AimPart) then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, t.Character[Config.AimPart].Position)
+        else
+            -- Si el objetivo muere o desaparece, buscar el siguiente más cercano o soltar
+            Config.Target = GetClosestPlayer()
+        end
+    end
+
+    -- Visuales ESP
+    for p, esp in pairs(ESPObjects) do
+        if Config.ESP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local pos, on = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+            if on then
+                local size = 3000 / pos.Z
+                esp.box.Size = Vector2.new(size * 0.7, size); esp.box.Position = Vector2.new(pos.X - (size * 0.7)/2, pos.Y - size/2); esp.box.Visible = true
+                esp.txt.Text = p.Name; esp.txt.Position = Vector2.new(pos.X, pos.Y - size/2 - 16); esp.txt.Visible = true
+            else esp.box.Visible = false; esp.txt.Visible = false end
+        else esp.box.Visible = false; esp.txt.Visible = false end
+    end
+end)
+
+-- INICIALIZAR ESP
+local function AddESP(p)
+    local box = Drawing.new("Square"); box.Visible = false; box.Thickness = 1.5; box.Color = Color3.fromRGB(255, 255, 255)
+    local txt = Drawing.new("Text"); txt.Visible = false; txt.Size = 14; txt.Center = true; txt.Outline = true; txt.Color = Color3.fromRGB(255, 255, 255)
+    ESPObjects[p] = {box = box, txt = txt}
+end
+for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then AddESP(p) end end
+Players.PlayerAdded:Connect(AddESP)
+
+-- DRAG
+local drag, dStart, sPos
+Main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = true dStart = i.Position sPos = Main.Position end end)
+Main.InputChanged:Connect(function(i) if drag and i.UserInputType == Enum.UserInputType.MouseMovement then local delta = i.Position - dStart Main.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + delta.X, sPos.Y.Scale, sPos.Y.Offset + delta.Y) end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end end)
+
+print("MJ X YANKEES V5 - TOGGLE MODE CARGADO")
